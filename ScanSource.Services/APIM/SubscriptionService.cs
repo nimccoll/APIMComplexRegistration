@@ -43,6 +43,21 @@ namespace ScanSource.Services.APIM
             _httpClient = new HttpClient();
         }
 
+        public async Task<APIMSubscription> CreateOrgSubscription(string displayName, string scope, Guid primaryKey, Guid secondaryKey, string email, string firstName, string lastName)
+        {
+            APIMSubscription apimSubscription = null;
+            string accessToken = GenerateAccessToken();
+            User user = await GetUser(email, accessToken);
+            if (user == null)
+            {
+                user = await CreateUser(accessToken, string.Empty, email, firstName, lastName);
+            }
+
+            apimSubscription = await CreateSubscription(user, accessToken, displayName, scope, primaryKey, secondaryKey, "active");
+
+            return apimSubscription;
+        }
+
         public async Task<APIMSubscription> CreateSubscription(string displayName, string scope, Guid primaryKey, Guid secondaryKey, string objectId, string email, string firstName, string lastName)
         {
             APIMSubscription apimSubscription = null;
@@ -52,22 +67,9 @@ namespace ScanSource.Services.APIM
             {
                 user = await CreateUser(accessToken, objectId, email, firstName, lastName);
             }
-            string userId = $"/users/{user.name}";
-            string subscriptionName = displayName.Replace(" ", "-").ToLower();
-            string url = $"{_apimUrl}/subscriptions/{subscriptionName}?api-version=2019-12-01";
-            string requestBody = "{ \"properties\": { \"primaryKey\": \"" + primaryKey + "\", \"scope\": \"" + scope + "\", \"secondaryKey\": \"" + secondaryKey + "\", \"displayName\": \"" + displayName + "\", \"ownerId\": \"" + userId + "\" } }";
-            _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("SharedAccessSignature", accessToken);
-            HttpResponseMessage response = await _httpClient.PutAsync(url, new StringContent(requestBody, Encoding.UTF8, "application/json"));
-            if (response.IsSuccessStatusCode)
-            {
-                string responseContent = await response.Content.ReadAsStringAsync();
-                apimSubscription = JsonConvert.DeserializeObject<APIMSubscription>(responseContent);
-                apimSubscription.properties.scope = scope;
-            }
-            else
-            {
-                string responseContent = await response.Content.ReadAsStringAsync();
-            }
+
+            displayName = $"{displayName} {objectId}";
+            apimSubscription = await CreateSubscription(user, accessToken, displayName, scope, primaryKey, secondaryKey, "submitted");
 
             return apimSubscription;
         }
@@ -104,20 +106,34 @@ namespace ScanSource.Services.APIM
         private async Task<User> CreateUser(string accessToken, string objectId, string emailAddress, string firstName, string lastName)
         {
             User user = null;
-            UserProperties properties = new UserProperties()
+            UserProperties properties = null;
+            if (string.IsNullOrEmpty(objectId))
             {
-                email = emailAddress,
-                firstName = firstName,
-                lastName = lastName,
-                identities = new List<Identity>()
+                properties = new UserProperties()
                 {
-                    new Identity()
+                    email = emailAddress,
+                    firstName = firstName,
+                    lastName = lastName
+                };
+            }
+            else
+            {
+                properties = new UserProperties()
+                {
+                    email = emailAddress,
+                    firstName = firstName,
+                    lastName = lastName,
+                    identities = new List<Identity>()
                     {
-                        id = objectId,
-                        provider = "AadB2C"
+                        new Identity()
+                        {
+                            id = objectId,
+                            provider = "AadB2C"
+                        }
                     }
-                }
-            };
+                };
+            }
+
 
             string url = $"{_apimUrl}/users/{Guid.NewGuid().ToString()}?api-version=2019-12-01";
             User newUser = new User()
@@ -138,6 +154,29 @@ namespace ScanSource.Services.APIM
             }
 
             return user;
+        }
+
+        private async Task<APIMSubscription> CreateSubscription(User user, string accessToken, string displayName, string scope, Guid primaryKey, Guid secondaryKey, string state)
+        {
+            APIMSubscription apimSubscription = null;
+            string userId = $"/users/{user.name}";
+            string subscriptionName = displayName.Replace(" ", "-").ToLower();
+            string url = $"{_apimUrl}/subscriptions/{subscriptionName}?api-version=2019-12-01";
+            string requestBody = "{ \"properties\": { \"primaryKey\": \"" + primaryKey + "\", \"scope\": \"" + scope + "\", \"secondaryKey\": \"" + secondaryKey + "\", \"displayName\": \"" + displayName + "\", \"ownerId\": \"" + userId + "\", \"state\": \"" + state + "\" } }";
+            _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("SharedAccessSignature", accessToken);
+            HttpResponseMessage response = await _httpClient.PutAsync(url, new StringContent(requestBody, Encoding.UTF8, "application/json"));
+            if (response.IsSuccessStatusCode)
+            {
+                string responseContent = await response.Content.ReadAsStringAsync();
+                apimSubscription = JsonConvert.DeserializeObject<APIMSubscription>(responseContent);
+                apimSubscription.properties.scope = scope;
+            }
+            else
+            {
+                string responseContent = await response.Content.ReadAsStringAsync();
+            }
+
+            return apimSubscription;
         }
 
         private async Task<UserSubscriptions> GetUserSubscriptions(string emailAddress, string accessToken)

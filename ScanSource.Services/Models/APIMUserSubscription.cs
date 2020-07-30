@@ -20,10 +20,10 @@ namespace ScanSource.Services.Models
         public string displayName { get; set; }
         public string state { get; set; }
         public DateTime createdDate { get; set; }
-        public DateTime startDate { get; set; }
-        public DateTime expirationDate { get; set; }
+        public DateTime? startDate { get; set; }
+        public DateTime? expirationDate { get; set; }
         public object endDate { get; set; }
-        public DateTime notificationDate { get; set; }
+        public DateTime? notificationDate { get; set; }
         public object stateComment { get; set; }
     }
 

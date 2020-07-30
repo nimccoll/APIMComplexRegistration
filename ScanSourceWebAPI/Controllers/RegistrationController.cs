@@ -21,6 +21,7 @@ using ScanSourceWebAPI.Models;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Diagnostics.Eventing.Reader;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -34,11 +35,13 @@ namespace ScanSourceWebAPI.Controllers
     {
         private static readonly string CLIENT_ID = "AADAppRegistrationClientID";
         private static readonly string CLIENT_SECRET = "AADAppRegistrationClientSecret";
+        private static readonly string MASKED_VALUE = "****************";
         private AzureServiceTokenProvider _azureServiceTokenProvider = null;
         private KeyVaultClient _keyVaultClient = null;
         private IRegistrationService _registrationService = null;
         private IAppService _appService = null;
         private ISubscriptionService _subscriptionService = null;
+        private string _orgEmailDomain = ConfigurationManager.AppSettings["OrgEmailDomain"];
 
         public RegistrationController()
         {
@@ -139,7 +142,7 @@ namespace ScanSourceWebAPI.Controllers
                     // Create APIM subscription key for the organization
                     Guid primaryKey = Guid.NewGuid();
                     Guid secondaryKey = Guid.NewGuid();
-                    APIMSubscription apimSubscription = await _subscriptionService.CreateSubscription($"APIM {id} Subscription", "/products/starter", primaryKey, secondaryKey, objectId, email, firstName, lastName);
+                    APIMSubscription apimSubscription = await _subscriptionService.CreateOrgSubscription($"APIM {id} Subscription", "/products/starter", primaryKey, secondaryKey, $"{id}@{_orgEmailDomain}", id, id);
 
                     // Store subscription information in Table Storage
                     OrganizationSubscription organizationSubscription = new OrganizationSubscription()
@@ -154,20 +157,26 @@ namespace ScanSourceWebAPI.Controllers
                     OrganizationEntity organizationEntity = new OrganizationEntity(organizationSubscription);
                     await _registrationService.CreateOrganizationSubscription(organizationEntity);
 
+                    // Create pending APIM subscription for the user
+                    APIMSubscription apimUserSubscription = await _subscriptionService.CreateSubscription($"APIM {id} Subscription", "/products/starter", Guid.NewGuid(), Guid.NewGuid(), objectId, email, firstName, lastName);
+
+                    // No user subscriptions have been approved yet so return masked values
                     ResponseContent responseContent = new ResponseContent
                     {
                         version = "1.0.0",
                         status = (int)HttpStatusCode.OK,
-                        primarySubscriptionKey = apimSubscription.properties.primaryKey,
-                        secondarySubscriptionKey = apimSubscription.properties.secondaryKey,
-                        clientId = clientId,
-                        clientSecret = clientSecret
+                        organization = id,
+                        primarySubscriptionKey = MASKED_VALUE,
+                        secondarySubscriptionKey = MASKED_VALUE,
+                        clientId = MASKED_VALUE,
+                        clientSecret = MASKED_VALUE
                     };
                     result.StatusCode = HttpStatusCode.OK;
                     result.Content = new StringContent(JsonConvert.SerializeObject(responseContent), Encoding.UTF8, "application/json");
                 }
                 else
                 {
+                    string state = string.Empty;
                     bool userHasSubscription = false;
                     UserSubscriptions userSubscriptions = await _subscriptionService.GetUserSubscriptions(email);
                     if (userSubscriptions != null && userSubscriptions.count > 0)
@@ -176,6 +185,7 @@ namespace ScanSourceWebAPI.Controllers
                         {
                             if (userSubscription.properties.scope.EndsWith(subscription.Scope, StringComparison.InvariantCultureIgnoreCase))
                             {
+                                state = userSubscription.properties.state;
                                 userHasSubscription = true;
                                 break;
                             }
@@ -184,18 +194,38 @@ namespace ScanSourceWebAPI.Controllers
 
                     if (!userHasSubscription)
                     {
-                        APIMSubscription apimSubscription = await _subscriptionService.CreateSubscription($"APIM {id} Subscription", "/products/starter", new Guid(subscription.PrimarySubscriptionKey), new Guid(subscription.SecondarySubscriptionKey), objectId, email, firstName, lastName);
+                        APIMSubscription apimSubscription = await _subscriptionService.CreateSubscription($"APIM {id} Subscription", "/products/starter", Guid.NewGuid(), Guid.NewGuid(), objectId, email, firstName, lastName);
+                        state = apimSubscription.properties.state;
                     }
 
-                    ResponseContent responseContent = new ResponseContent
+                    ResponseContent responseContent = null;
+                    if (state == "active") // User has an approved subscription - share the organization values
                     {
-                        version = "1.0.0",
-                        status = (int)HttpStatusCode.OK,
-                        primarySubscriptionKey = subscription.PrimarySubscriptionKey,
-                        secondarySubscriptionKey = subscription.SecondarySubscriptionKey,
-                        clientId = subscription.ClientId,
-                        clientSecret = subscription.ClientSecret
-                    };
+                        responseContent = new ResponseContent
+                        {
+                            version = "1.0.0",
+                            status = (int)HttpStatusCode.OK,
+                            organization = id,
+                            primarySubscriptionKey = subscription.PrimarySubscriptionKey,
+                            secondarySubscriptionKey = subscription.SecondarySubscriptionKey,
+                            clientId = subscription.ClientId,
+                            clientSecret = subscription.ClientSecret
+                        };
+                    }
+                    else // User has a pending subscription - return masked values
+                    {
+                        responseContent = new ResponseContent
+                        {
+                            version = "1.0.0",
+                            status = (int)HttpStatusCode.OK,
+                            organization = id,
+                            primarySubscriptionKey = MASKED_VALUE,
+                            secondarySubscriptionKey = MASKED_VALUE,
+                            clientId = MASKED_VALUE,
+                            clientSecret = MASKED_VALUE
+                        };
+                    }
+                    
                     result.StatusCode = HttpStatusCode.OK;
                     result.Content = new StringContent(JsonConvert.SerializeObject(responseContent), Encoding.UTF8, "application/json");
                 }

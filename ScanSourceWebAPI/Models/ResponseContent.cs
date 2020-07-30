@@ -14,6 +14,7 @@ namespace ScanSourceWebAPI.Models
     {
         public string version { get; set; }
         public int status { get; set; }
+        public string organization { get; set; }
         public string primarySubscriptionKey { get; set; }
         public string secondarySubscriptionKey { get; set; }
         public string clientId { get; set; }

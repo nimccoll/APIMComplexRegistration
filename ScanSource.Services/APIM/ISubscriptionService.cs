@@ -16,7 +16,9 @@ namespace ScanSource.Services.APIM
 {
     public interface ISubscriptionService
     {
-        Task<APIMSubscription> CreateSubscription(string subscriptionName, string scope, Guid primaryKey, Guid secondaryKey, string objectId, string email, string firstName, string lastName);
+        Task<APIMSubscription> CreateOrgSubscription(string displayName, string scope, Guid primaryKey, Guid secondaryKey, string email, string firstName, string lastName);
+
+        Task<APIMSubscription> CreateSubscription(string displayName, string scope, Guid primaryKey, Guid secondaryKey, string objectId, string email, string firstName, string lastName);
 
         Task<UserSubscriptions> GetUserSubscriptions(string emailAddress);
     }
