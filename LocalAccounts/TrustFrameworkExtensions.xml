@@ -20,6 +20,12 @@
         <UserHelpText>Your assigned organization number</UserHelpText>
         <UserInputType>TextBox</UserInputType>
       </ClaimType>
+      <ClaimType Id="extension_displayOrganization">
+        <DisplayName>Organization Identification</DisplayName>
+        <DataType>string</DataType>
+        <UserHelpText/>
+        <UserInputType>Readonly</UserInputType>
+      </ClaimType>
       <ClaimType Id="extension_primarySubscriptionKey">
         <DisplayName>Primary Subscription Key</DisplayName>
         <DataType>string</DataType>
@@ -113,7 +119,7 @@
                  ValidationTechnicalProfile referenced below so it can be written to directory after being updateed by the user, i.e. AAD-UserWriteProfileUsingObjectId. -->
             <InputClaim ClaimTypeReferenceId="givenName" />
             <InputClaim ClaimTypeReferenceId="surname" />
-            <InputClaim ClaimTypeReferenceId="extension_Organization" />
+            <InputClaim ClaimTypeReferenceId="extension_displayOrganization" />
             <InputClaim ClaimTypeReferenceId="extension_primarySubscriptionKey" />
             <InputClaim ClaimTypeReferenceId="extension_secondarySubscriptionKey" />
             <InputClaim ClaimTypeReferenceId="extension_clientId" />
@@ -127,7 +133,7 @@
                  ValidationTechnicalProfile referenced below so it can be written to directory after being updateed by the user, i.e. AAD-UserWriteProfileUsingObjectId. -->
             <OutputClaim ClaimTypeReferenceId="givenName" />
             <OutputClaim ClaimTypeReferenceId="surname" />
-            <OutputClaim ClaimTypeReferenceId="extension_Organization" />            
+            <OutputClaim ClaimTypeReferenceId="extension_displayOrganization" />            
             <OutputClaim ClaimTypeReferenceId="extension_primarySubscriptionKey" />            
             <OutputClaim ClaimTypeReferenceId="extension_secondarySubscriptionKey" />            
             <OutputClaim ClaimTypeReferenceId="extension_clientId" />            
@@ -203,6 +209,7 @@
         <InputClaim ClaimTypeReferenceId="surname" PartnerClaimType="lastName" />
       </InputClaims>
       <OutputClaims>
+        <OutputClaim ClaimTypeReferenceId="extension_displayOrganization" PartnerClaimType="organization" />
         <OutputClaim ClaimTypeReferenceId="extension_primarySubscriptionKey" PartnerClaimType="primarySubscriptionKey" />
         <OutputClaim ClaimTypeReferenceId="extension_secondarySubscriptionKey" PartnerClaimType="secondarySubscriptionKey" />
         <OutputClaim ClaimTypeReferenceId="extension_clientId" PartnerClaimType="clientId" />
